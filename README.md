@@ -1,17 +1,65 @@
-# LizardByte/jellyfin-plugin-repo
+# jellyfin-plugin-repo
 
-Update a Jellyfin manifest file in a GitHub repository, and publish to gh-pages.
+This repository hosts LizardByte's Jellyfin plugins in gh-pages. Additionally, there is a re-usable GitHub action
+that can be used to publish your own plugins to your own gh-pages repository. See [action.yml](action.yml) for details.
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/LizardByte/jellyfin-plugin-repo](https://github.com/LizardByte/jellyfin-plugin-repo).
+## Install LizardByte Jellyfin repository
 
-## Versions
+1. Open the Jellyfin dashboard
+2. Navigate to the `Plugins` menu
+3. Click the `Repositories` tab
+4. Click the `+` button
+5. Enter one of the following URLs:
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v2024.919.151635 | [`v2024.919.151635`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2024.919.151635) | [`7ba8aa4`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/7ba8aa443457bb8bcea3496ff91e8794347cc4a2) |
-| v2025.426.154020 | [`v2025.426.154020`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2025.426.154020) | [`d8d6b99`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/d8d6b99e0f342ad51eeaaccb5b58d424c089ede4) |
-| v2025.612.131900 | [`v2025.612.131900`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2025.612.131900) | [`9b4a092`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/9b4a092e7fe87c57531949fd601833f7ce30e97c) |
-| v2026.417.125702 | [`v2026.417.125702`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2026.417.125702) | [`4310233`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/4310233d66615230dece9e3479ff3d5c9734c0a2) |
+    *Primary*
+    ```txt
+    https://app.lizardbyte.dev/jellyfin-plugin-repo/manifest.json
+    ```
+
+    *Alternate*
+    ```txt
+    https://lizardbyte.github.io/jellyfin-plugin-repo/manifest.json
+    ```
+
+    *It should look like this:*
+    ![Add Repository](/docs/images/jellyfin_new_repository.png)
+
+6. Click `Save`
+7. Confirm the warning
+
+    ![Confirm Warning](/docs/images/jellyfin_confirm_third_party_plugin.png)
+
+8. Select the `Catalog` tab to see the newly added plugins.
+
+
+## Action
+
+### Use in ci
+
+```yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # build your plugin
+
+      - name: Create/Update Jellyfin Release
+        uses: LizardByte/jellyfin-plugin-repo@master
+        with:
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
+          committer_email: ${{ secrets.GH_BOT_EMAIL }}
+          committer_name: ${{ secrets.GH_BOT_NAME }}
+          release_tag: ${{ needs.setup_release.outputs.release_tag }}
+          zipfile: <path_to_your_zipfile>
+```
+
+### Use action on release events
+
+LizardByte uses the following workflow for Jellyfin plugins.
+This allows us to remove versions when we delete a release, as we only keep a single pre-release.
+
+See [update-jellyfin-release.yml](https://github.com/LizardByte/Themerr-jellyfin/.github/workflows/update-jellyfin-release.yml)
+for an example.
 
 ## Privacy
 

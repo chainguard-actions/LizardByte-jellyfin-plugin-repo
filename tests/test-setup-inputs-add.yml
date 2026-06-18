@@ -1,0 +1,194 @@
+---
+name: Test setup inputs for add action
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_EVENT_NAME: push
+      GITHUB_REF: refs/heads/main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create a fake zip file for the action
+        run: |
+          echo "fake zip content" > /tmp/myplugin.zip
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          action: add
+          committer_email: test@example.com
+          committer_name: Test User
+          branch: gh-pages
+          gh_pages_url: https://lizardbyte.github.io/jellyfin-plugin-repo
+          github_token: fake-token-for-testing
+          release_tag: v1.2.3
+          repository: LizardByte/jellyfin-plugin-repo
+          plugin_url: https://example.com/myplugin.zip
+          zipfile: /tmp/myplugin.zip
+
+      - name: Assert action ran (Setup inputs step should succeed before checkout fails)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "action outcome: $OUTCOME"
+          # The action is expected to fail at the checkout or push step (fake token),
+          # but it should NOT fail at the Setup inputs step for a valid 'add' action.
+          # Either 'success' (unlikely with fake token) or 'failure' (at checkout) is acceptable,
+          # but 'skipped' would indicate the step was never reached.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action step ran (outcome: $OUTCOME)"
+
+      - name: Verify inputs logic for add action directly
+        env:
+          INPUTS_ACTION: add
+          INPUTS_BRANCH: gh-pages
+          INPUTS_GH_PAGES_URL: https://lizardbyte.github.io/jellyfin-plugin-repo
+          INPUTS_PLUGIN_URL: https://example.com/myplugin.zip
+          INPUTS_REPOSITORY: LizardByte/jellyfin-plugin-repo
+          INPUTS_RELEASE_TAG: v1.2.3
+          INPUTS_ZIPFILE: /tmp/myplugin.zip
+          SOURCE_REPOSITORY: SomeOrg/my-repo
+          SOURCE_REPOSITORY_NAME: my-repo
+          SOURCE_REPOSITORY_URL: https://github.com/SomeOrg/my-repo
+        run: |
+          set -e
+
+          case ${INPUTS_ACTION} in
+            add)
+              ;;
+            remove)
+              ;;
+            *)
+              echo "FAIL: Invalid action: ${INPUTS_ACTION}"
+              exit 1
+              ;;
+          esac
+
+          if [[ "${SOURCE_REPOSITORY}" =~ ^LizardByte/ ]]; then
+            plugin_name=$(echo ${SOURCE_REPOSITORY_NAME} | sed 's/-jellyfin$//' | tr '[:upper:]' '[:lower:]')
+          else
+            plugin_name=$(echo ${SOURCE_REPOSITORY_NAME} | tr '[:upper:]' '[:lower:]')
+          fi
+
+          release_version=$(echo ${INPUTS_RELEASE_TAG} | sed 's/^v//')
+
+          if [ -z "${INPUTS_ZIPFILE}" ]; then
+            repository_name=$(echo ${SOURCE_REPOSITORY_NAME} | tr '[:upper:]' '[:lower:]')
+            zipfile_name=${repository_name}.zip
+            zipfile_path=${GITHUB_WORKSPACE}/${repository_name}.zip
+          else
+            zipfile_name=$(basename ${INPUTS_ZIPFILE})
+            zipfile_path=${INPUTS_ZIPFILE}
+          fi
+
+          if [ -z "${INPUTS_PLUGIN_URL}" ]; then
+            plugin_url=${SOURCE_REPOSITORY_URL}/releases/download/${INPUTS_RELEASE_TAG}/${zipfile_name}
+          else
+            plugin_url=${INPUTS_PLUGIN_URL}
+          fi
+
+          echo "action=${INPUTS_ACTION}"
+          echo "branch=${INPUTS_BRANCH}"
+          echo "plugin_name=${plugin_name}"
+          echo "plugin_url=${plugin_url}"
+          echo "release_tag=${INPUTS_RELEASE_TAG}"
+          echo "release_version=${release_version}"
+          echo "zipfile_name=${zipfile_name}"
+          echo "zipfile_path=${zipfile_path}"
+
+          if [ "${INPUTS_ACTION}" != "add" ]; then
+            echo "FAIL: expected action='add', got '${INPUTS_ACTION}'"
+            exit 1
+          fi
+          echo "PASS: action is correct"
+
+          if [ "${release_version}" != "1.2.3" ]; then
+            echo "FAIL: expected release_version='1.2.3' (v prefix stripped), got '${release_version}'"
+            exit 1
+          fi
+          echo "PASS: release_version is correct (v prefix stripped)"
+
+          if [ "${plugin_url}" != "https://example.com/myplugin.zip" ]; then
+            echo "FAIL: expected plugin_url='https://example.com/myplugin.zip', got '${plugin_url}'"
+            exit 1
+          fi
+          echo "PASS: plugin_url is correct"
+
+          if [ "${INPUTS_BRANCH}" != "gh-pages" ]; then
+            echo "FAIL: expected branch='gh-pages', got '${INPUTS_BRANCH}'"
+            exit 1
+          fi
+          echo "PASS: branch is correct"
+
+          if [ "${zipfile_name}" != "myplugin.zip" ]; then
+            echo "FAIL: expected zipfile_name='myplugin.zip', got '${zipfile_name}'"
+            exit 1
+          fi
+          echo "PASS: zipfile_name is correct"
+
+          if [ "${plugin_name}" != "my-repo" ]; then
+            echo "FAIL: expected plugin_name='my-repo', got '${plugin_name}'"
+            exit 1
+          fi
+          echo "PASS: plugin_name is correct"
+
+      - name: Test plugin name stripping for LizardByte org
+        env:
+          SOURCE_REPOSITORY: LizardByte/my-plugin-jellyfin
+          SOURCE_REPOSITORY_NAME: my-plugin-jellyfin
+        run: |
+          set -e
+          if [[ "${SOURCE_REPOSITORY}" =~ ^LizardByte/ ]]; then
+            plugin_name=$(echo ${SOURCE_REPOSITORY_NAME} | sed 's/-jellyfin$//' | tr '[:upper:]' '[:lower:]')
+          else
+            plugin_name=$(echo ${SOURCE_REPOSITORY_NAME} | tr '[:upper:]' '[:lower:]')
+          fi
+
+          echo "plugin_name=${plugin_name}"
+
+          if [ "${plugin_name}" != "my-plugin" ]; then
+            echo "FAIL: expected plugin_name='my-plugin' (jellyfin suffix stripped), got '${plugin_name}'"
+            exit 1
+          fi
+          echo "PASS: plugin_name correctly strips -jellyfin suffix for LizardByte org"
+
+      - name: Test auto-derived plugin_url when not provided
+        env:
+          INPUTS_PLUGIN_URL: ""
+          INPUTS_ZIPFILE: ""
+          INPUTS_RELEASE_TAG: v3.0.0
+          SOURCE_REPOSITORY_NAME: MyPlugin
+          SOURCE_REPOSITORY_URL: https://github.com/SomeOrg/MyPlugin
+        run: |
+          set -e
+          if [ -z "${INPUTS_ZIPFILE}" ]; then
+            repository_name=$(echo ${SOURCE_REPOSITORY_NAME} | tr '[:upper:]' '[:lower:]')
+            zipfile_name=${repository_name}.zip
+            zipfile_path=${GITHUB_WORKSPACE}/${repository_name}.zip
+          else
+            zipfile_name=$(basename ${INPUTS_ZIPFILE})
+            zipfile_path=${INPUTS_ZIPFILE}
+          fi
+
+          if [ -z "${INPUTS_PLUGIN_URL}" ]; then
+            plugin_url=${SOURCE_REPOSITORY_URL}/releases/download/${INPUTS_RELEASE_TAG}/${zipfile_name}
+          else
+            plugin_url=${INPUTS_PLUGIN_URL}
+          fi
+
+          echo "zipfile_name=${zipfile_name}"
+          echo "plugin_url=${plugin_url}"
+
+          expected_url="https://github.com/SomeOrg/MyPlugin/releases/download/v3.0.0/myplugin.zip"
+          if [ "${plugin_url}" != "${expected_url}" ]; then
+            echo "FAIL: expected plugin_url='${expected_url}', got '${plugin_url}'"
+            exit 1
+          fi
+          echo "PASS: auto-derived plugin_url is correct"

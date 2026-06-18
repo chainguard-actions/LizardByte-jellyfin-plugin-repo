@@ -1,0 +1,199 @@
+name: "Jellyfin manifest manager"
+description: "Update a Jellyfin manifest file in a GitHub repository, and publish to gh-pages."
+author: "LizardByte"
+branding:
+  color: "green"
+  icon: "package"
+inputs:
+  action:
+    description: "The jprm action to perform. Choices are `add` or `remove`."
+    default: "add"
+    required: false
+  committer_email:
+    description: "The email address of the committer to the gh-pages branch."
+    required: true
+  committer_name:
+    description: "The name of the committer to the gh-pages branch."
+    required: true
+  branch:
+    description: "The branch where gh-pages is hosted."
+    default: "gh-pages"
+    required: false
+  gh_pages_url:
+    description: "The URL where the gh-pages branch is hosted."
+    default: "https://lizardbyte.github.io/jellyfin-plugin-repo"
+    required: false
+  github_token:
+    description: "The GitHub token used to push to the gh-pages branch."
+    required: true
+  release_tag:
+    description: "The tag name of the release."
+    default: "latest"
+    required: false
+  repository:
+    description: "The repository where gh-pages is hosted."
+    default: "LizardByte/jellyfin-plugin-repo"
+    required: false
+  plugin_url:
+    description: "The URL where the plugin zip file is (or will be) hosted. This will be evaluated if empty."
+    default: ""
+    required: false
+  zipfile:
+    description: "The path to the plugin zip file. This will be evaluated if empty."
+    default: ""
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Setup inputs
+      id: inputs
+      shell: bash
+      env:
+        INPUTS_ACTION: ${{ inputs.action }}
+        INPUTS_BRANCH: ${{ inputs.branch }}
+        INPUTS_GH_PAGES_URL: ${{ inputs.gh_pages_url }}
+        INPUTS_PLUGIN_URL: ${{ inputs.plugin_url }}
+        INPUTS_REPOSITORY: ${{ inputs.repository }}
+        INPUTS_RELEASE_TAG: ${{ inputs.release_tag }}
+        INPUTS_ZIPFILE: ${{ inputs.zipfile }}
+        SOURCE_REPOSITORY: ${{ github.event.repository.full_name }}
+        SOURCE_REPOSITORY_NAME: ${{ github.event.repository.name }} # the repository running this action
+        SOURCE_REPOSITORY_URL: ${{ github.event.repository.html_url }}
+      run: |
+        # switch to ensure the action is valid
+        case "${INPUTS_ACTION}" in
+          add)
+            ;;
+          remove)
+            ;;
+          *)
+            echo ":error: Invalid action: ${INPUTS_ACTION}"
+            echo "Valid actions are 'add' or 'remove'"
+            exit 1
+            ;;
+        esac
+
+        if [[ "${SOURCE_REPOSITORY}" =~ ^LizardByte/ ]]; then
+          # strip `-jellyfin` from the end of the name, if in the LizardByte org
+          plugin_name=$(echo "${SOURCE_REPOSITORY_NAME}" | sed 's/-jellyfin$//' | tr '[:upper:]' '[:lower:]')
+        else
+          plugin_name=$(echo "${SOURCE_REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]')
+        fi
+
+        # release version, tag without v prefix
+        release_version=$(echo "${INPUTS_RELEASE_TAG}" | sed 's/^v//')
+
+        if [ -z "${INPUTS_ZIPFILE}" ]; then
+          # repository name in lowercase
+          repository_name=$(echo "${SOURCE_REPOSITORY_NAME}" | tr '[:upper:]' '[:lower:]')
+          zipfile_name=${repository_name}.zip
+          zipfile_path=${GITHUB_WORKSPACE}/${repository_name}.zip
+        else
+          zipfile_name=$(basename "${INPUTS_ZIPFILE}")
+          zipfile_path=${INPUTS_ZIPFILE}
+        fi
+
+        if [ -z "${INPUTS_PLUGIN_URL}" ]; then
+          plugin_url=${SOURCE_REPOSITORY_URL}/releases/download/${INPUTS_RELEASE_TAG}/${zipfile_name}
+        else
+          plugin_url=${INPUTS_PLUGIN_URL}
+        fi
+
+        {
+          printf 'action=%s\n' "$(printf '%s' "${INPUTS_ACTION}" | tr -d '\n\r')"
+          printf 'branch=%s\n' "$(printf '%s' "${INPUTS_BRANCH}" | tr -d '\n\r')"
+          printf 'gh_pages_url=%s\n' "$(printf '%s' "${INPUTS_GH_PAGES_URL}" | tr -d '\n\r')"
+          printf 'plugin_name=%s\n' "$(printf '%s' "${plugin_name}" | tr -d '\n\r')"
+          printf 'plugin_url=%s\n' "$(printf '%s' "${plugin_url}" | tr -d '\n\r')"
+          printf 'repository=%s\n' "$(printf '%s' "${INPUTS_REPOSITORY}" | tr -d '\n\r')"
+          printf 'release_tag=%s\n' "$(printf '%s' "${INPUTS_RELEASE_TAG}" | tr -d '\n\r')"
+          printf 'release_version=%s\n' "$(printf '%s' "${release_version}" | tr -d '\n\r')"
+          printf 'source_repository=%s\n' "$(printf '%s' "${SOURCE_REPOSITORY_NAME}" | tr -d '\n\r')"
+          printf 'zipfile_name=%s\n' "$(printf '%s' "${zipfile_name}" | tr -d '\n\r')"
+          printf 'zipfile_path=%s\n' "$(printf '%s' "${zipfile_path}" | tr -d '\n\r')"
+        } >> "${GITHUB_OUTPUT}"
+    - name: Setup Python
+      id: setup-python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: "3.14"
+        update-environment: false
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+      run: |
+        "$PYTHON_PATH" -m pip install --upgrade pip setuptools wheel
+        "$PYTHON_PATH" -m pip install -r requirements.txt
+    - name: Checkout gh-pages
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        ref: ${{ steps.inputs.outputs.branch }}
+        repository: ${{ steps.inputs.outputs.repository }}
+        path: ${{ steps.inputs.outputs.branch }}
+        persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of the personal token
+        fetch-depth: 0 # otherwise, will fail to push refs to dest repo
+    - name: JPRM repo
+      shell: bash
+      env:
+        PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        JPRM_ACTION: ${{ steps.inputs.outputs.action }}
+        JPRM_BRANCH: ${{ steps.inputs.outputs.branch }}
+        JPRM_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
+        JPRM_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
+        JPRM_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
+        JPRM_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
+        JPRM_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
+      run: |
+        # initialize repo if it doesn't exist
+        "$PYTHON_PATH" \
+          -m jprm \
+          repo init \
+          "$JPRM_BRANCH" || true  # ignore error if already exists
+
+        # add plugin to repo
+        if [ "$JPRM_ACTION" == "add" ]; then
+          "$PYTHON_PATH" \
+            -m jprm \
+            repo add \
+            --url "$JPRM_GH_PAGES_URL" \
+            --plugin-url "$JPRM_PLUGIN_URL" \
+            "$JPRM_BRANCH" \
+            "$JPRM_ZIPFILE_PATH"
+        elif [ "$JPRM_ACTION" == "remove" ]; then
+          "$PYTHON_PATH" \
+            -m jprm \
+            repo remove \
+            "$JPRM_BRANCH" \
+            "$JPRM_PLUGIN_NAME" \
+            "$JPRM_RELEASE_VERSION"
+        fi
+    - name: Publish gh-pages
+      uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
+      with:
+        github_token: ${{ inputs.github_token }}
+        author_email: ${{ inputs.committer_email }}
+        author_name: ${{ inputs.committer_name }}
+        directory: ${{ steps.inputs.outputs.branch }}
+        branch: ${{ steps.inputs.outputs.branch }}
+        force: false
+        message: "chore: bump ${{ steps.inputs.outputs.source_repository }} to ${{ steps.inputs.outputs.release_tag }}"
+        repository: ${{ steps.inputs.outputs.repository }}

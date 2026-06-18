@@ -12,6 +12,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v2025.426.154020 | [`v2025.426.154020`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2025.426.154020) | [`d8d6b99`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/d8d6b99e0f342ad51eeaaccb5b58d424c089ede4) |
 | v2025.612.131900 | [`v2025.612.131900`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2025.612.131900) | [`9b4a092`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/9b4a092e7fe87c57531949fd601833f7ce30e97c) |
 | v2026.417.125702 | [`v2026.417.125702`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2026.417.125702) | [`4310233`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/4310233d66615230dece9e3479ff3d5c9734c0a2) |
+| v2026.602.212143 | [`v2026.602.212143`](https://github.com/chainguard-actions/LizardByte-jellyfin-plugin-repo/tree/v2026.602.212143) | [`a8958e7`](https://github.com/LizardByte/jellyfin-plugin-repo/commit/a8958e77266a19aab76207c8c07267d247bcda7c) |
 
 ## Privacy
 

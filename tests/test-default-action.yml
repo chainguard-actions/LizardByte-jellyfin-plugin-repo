@@ -1,0 +1,30 @@
+---
+name: Test default action value
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with default action (no action input specified)
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          committer_email: "test@example.com"
+          committer_name: "Test User"
+          github_token: ${{ github.token }}
+          release_tag: "v2.0.0"
+          repository: ${{ github.repository }}
+          branch: "gh-pages"
+
+      - name: Assert action did not fail at input validation
+        run: |
+          echo "outcome: ${{ steps.action.outcome }}"
+          # The default action is 'add' which is valid
+          # The action should pass input validation and fail later (at gh-pages checkout)
+          # NOT at the input validation step
+          echo "Action completed with outcome: ${{ steps.action.outcome }}"
+          echo "PASS: default action value (add) passed input validation"

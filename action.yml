@@ -70,6 +70,7 @@ runs:
         INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         INPUT_ZIPFILE: ${{ inputs.zipfile }}
         INPUT_PLUGIN_URL: ${{ inputs.plugin_url }}
+        INPUT_PLUGIN_URL_DASH: ${{ inputs.plugin-url }}
         GITHUB_REPO_NAME: ${{ github.event.repository.name }}
         GITHUB_REPO_FULL: ${{ github.event.repository.full_name }}
         GITHUB_REPO_HTML_URL: ${{ github.event.repository.html_url }}
@@ -117,7 +118,7 @@ runs:
           zipfile_path="$INPUT_ZIPFILE"
         fi
 
-        if [ -z "$INPUT_PLUGIN_URL" ]; then
+        if [ -z "$INPUT_PLUGIN_URL_DASH" ]; then
           plugin_url="${GITHUB_REPO_HTML_URL}/releases/download/${release_tag}/${zipfile_name}"
         else
           plugin_url="$INPUT_PLUGIN_URL"
@@ -163,7 +164,7 @@ runs:
         "$PYTHON_PATH" -m pip install --upgrade pip setuptools wheel
         "$PYTHON_PATH" -m pip install -r requirements.txt
     - name: Checkout gh-pages
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         ref: ${{ steps.inputs.outputs.branch }}
         repository: ${{ steps.inputs.outputs.repository }}
@@ -174,36 +175,36 @@ runs:
       shell: bash
       env:
         PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
-        STEP_ACTION: ${{ steps.inputs.outputs.action }}
-        STEP_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
-        STEP_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
-        STEP_BRANCH: ${{ steps.inputs.outputs.branch }}
-        STEP_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
-        STEP_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
-        STEP_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
+        JPRM_BRANCH: ${{ steps.inputs.outputs.branch }}
+        JPRM_ACTION: ${{ steps.inputs.outputs.action }}
+        JPRM_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
+        JPRM_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
+        JPRM_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
+        JPRM_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
+        JPRM_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
       run: |
         # initialize repo if it doesn't exist
         "$PYTHON_PATH" \
           -m jprm \
           repo init \
-          "$STEP_BRANCH" || true  # ignore error if already exists
+          "$JPRM_BRANCH" || true  # ignore error if already exists
 
         # add plugin to repo
-        if [ "$STEP_ACTION" == "add" ]; then
+        if [ "$JPRM_ACTION" == "add" ]; then
           "$PYTHON_PATH" \
             -m jprm \
             repo add \
-            --url "$STEP_GH_PAGES_URL" \
-            --plugin-url "$STEP_PLUGIN_URL" \
-            "$STEP_BRANCH" \
-            "$STEP_ZIPFILE_PATH"
-        elif [ "$STEP_ACTION" == "remove" ]; then
+            --url "$JPRM_GH_PAGES_URL" \
+            --plugin-url "$JPRM_PLUGIN_URL" \
+            "$JPRM_BRANCH" \
+            "$JPRM_ZIPFILE_PATH"
+        elif [ "$JPRM_ACTION" == "remove" ]; then
           "$PYTHON_PATH" \
             -m jprm \
             repo remove \
-            "$STEP_BRANCH" \
-            "$STEP_PLUGIN_NAME" \
-            "$STEP_RELEASE_VERSION"
+            "$JPRM_BRANCH" \
+            "$JPRM_PLUGIN_NAME" \
+            "$JPRM_RELEASE_VERSION"
         fi
     - name: Publish gh-pages
       uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5

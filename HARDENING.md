@@ -8,109 +8,126 @@
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
-**Harden Agent Version:** `1`
+**Harden Agent Version:** `2`
 
-Action **LizardByte--jellyfin-plugin-repo/v2025.426.154020** was hardened automatically. 13 finding(s) were identified and resolved across 2 iteration(s).
+Action **LizardByte--jellyfin-plugin-repo/v2025.426.154020** was hardened automatically. 22 finding(s) were identified and resolved across 3 iteration(s).
 
 ## Findings Fixed
 
-### unpinned-uses (severity: high)
+### script-injection (severity: high)
 
-Three `uses:` references in action.yml use mutable tags instead of full 40-character SHA commit hashes, making the action vulnerable to supply-chain attacks if the referenced tag is moved:
-- `actions/setup-python@v5` (line ~97)
-- `actions/checkout@v4` (line ~109)
-- `actions-js/push@v1.5` (line ~155)
-All should be pinned to a full SHA digest, e.g. `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`.
+Sub-rule (a): The 'Setup inputs' run: block in action.yml directly interpolates multiple untrusted ${{ }} expressions into shell commands without routing through env: variables. Offending lines include: `action=${{ inputs.action }}`, `branch=${{ inputs.branch }}`, `gh_pages_url=${{ inputs.gh_pages_url }}`, `repository=${{ inputs.repository }}`, `release_tag=${{ inputs.release_tag }}`, `source_repository=${{ github.event.repository.name }}`, `if [[ "${{ github.event.repository }}" =~ ^LizardByte/ ]]`, `zipfile_path=${{ github.workspace }}/${repository_name}.zip`, `zipfile_name=$(basename ${{ inputs.zipfile }})`, `zipfile_path=${{ inputs.zipfile }}`, `plugin_url=${{ github.event.repository.html_url }}/releases/download/...`, and `plugin_url=${{ inputs.plugin_url }}`. An attacker controlling any of these inputs can inject arbitrary shell commands.
 
 Locations:
 
-- `action.yml:97`
-- `action.yml:109`
-- `action.yml:155`
+- `action.yml:52`
 
 ### script-injection (severity: high)
 
-Multiple `${{ ... }}` expressions are directly interpolated inside `run:` shell command strings in action.yml, violating sub-rule (a). This allows an attacker to inject arbitrary shell commands via attacker-controlled inputs or github context values before the shell ever sees the string.
-
-Affected expressions in the 'Setup inputs' run block:
-- `action=${{ inputs.action }}` — attacker-controlled input directly assigned in shell
-- `branch=${{ inputs.branch }}` — attacker-controlled input directly assigned in shell
-- `gh_pages_url=${{ inputs.gh_pages_url }}` — attacker-controlled input directly assigned in shell
-- `repository=${{ inputs.repository }}` — attacker-controlled input directly assigned in shell
-- `release_tag=${{ inputs.release_tag }}` — attacker-controlled input directly assigned in shell
-- `source_repository=${{ github.event.repository.name }}` — github context directly in shell
-- `if [[ "${{ github.event.repository }}" =~ ^LizardByte/ ]]` — github context directly in shell
-- `zipfile_path=${{ github.workspace }}/${repository_name}.zip` — github context directly in shell
-- `zipfile_name=$(basename ${{ inputs.zipfile }})` — attacker-controlled input directly in shell
-- `zipfile_path=${{ inputs.zipfile }}` — attacker-controlled input directly in shell
-- `plugin_url=${{ github.event.repository.html_url }}/releases/download/...` — github context directly in shell
-- `plugin_url=${{ inputs.plugin_url }}` — attacker-controlled input directly in shell
-
-Affected expressions in the 'Install dependencies' run block:
-- `${{ steps.setup-python.outputs.python-path }} -m pip install ...` — step output directly in shell
-
-Affected expressions in the 'JPRM repo' run block:
-- `${{ steps.setup-python.outputs.python-path }}` — step output directly in shell
-- `if [ "${{ steps.inputs.outputs.action }}" == "add" ]` — step output directly in shell
-- `--url ${{ steps.inputs.outputs.gh_pages_url }}` — step output directly in shell (unquoted)
-- `--plugin-url ${{ steps.inputs.outputs.plugin_url }}` — step output directly in shell (unquoted)
-- `${{ steps.inputs.outputs.branch }}` — step output directly in shell (unquoted)
-- `${{ steps.inputs.outputs.zipfile_path }}` — step output directly in shell (unquoted)
-- `${{ steps.inputs.outputs.plugin_name }}` — step output directly in shell (unquoted)
-- `${{ steps.inputs.outputs.release_version }}` — step output directly in shell (unquoted)
-
-All `${{ ... }}` expressions must be moved to `env:` blocks and the env vars must be double-quoted in the shell script.
+Sub-rule (a): The 'Install dependencies' run: block in action.yml directly interpolates `${{ steps.setup-python.outputs.python-path }}` into the shell command string. Any ${{ }} expression inside a run: block is a script-injection risk regardless of context.
 
 Locations:
 
-- `action.yml:51`
-- `action.yml:52`
-- `action.yml:53`
-- `action.yml:54`
-- `action.yml:55`
-- `action.yml:63`
-- `action.yml:65`
-- `action.yml:75`
-- `action.yml:77`
-- `action.yml:78`
-- `action.yml:82`
-- `action.yml:84`
-- `action.yml:103`
-- `action.yml:121`
-- `action.yml:128`
+- `action.yml:107`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'JPRM repo' run: block in action.yml directly interpolates multiple ${{ steps.inputs.outputs.* }} and ${{ steps.setup-python.outputs.python-path }} expressions into shell commands. Offending lines include: `${{ steps.setup-python.outputs.python-path }}`, `${{ steps.inputs.outputs.branch }}`, `if [ "${{ steps.inputs.outputs.action }}" == "add" ]`, `--url ${{ steps.inputs.outputs.gh_pages_url }}`, `--plugin-url ${{ steps.inputs.outputs.plugin_url }}`, `${{ steps.inputs.outputs.zipfile_path }}`, `${{ steps.inputs.outputs.plugin_name }}`, `${{ steps.inputs.outputs.release_version }}`. These values originate from user-controlled inputs and github context.
+
+Locations:
+
+- `action.yml:120`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'Prebuild' run: block in .github/workflows/codeql.yml directly interpolates `${{ matrix.language }}` and `${{ runner.os }}` into a shell variable assignment: `filename=".codeql-prebuild-${{ matrix.language }}-${{ runner.os }}.sh"`. Any ${{ }} expression inside a run: block is a script-injection risk.
+
+Locations:
+
+- `.github/workflows/codeql.yml:147`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'CMake - cmake-lint' run: block in .github/workflows/common-lint.yml directly interpolates `${{ steps.cmake_files.outputs.found_files }}` into a shell command: `cmake-lint --line-width 120 --tab-size 4 ${{ steps.cmake_files.outputs.found_files }}`. This value is derived from filesystem discovery but flows through a step output, making it a script-injection risk.
+
+Locations:
+
+- `.github/workflows/common-lint.yml:82`
+
+### script-injection (severity: high)
+
+Sub-rule (a): The 'Docker - hadolint' run: block in .github/workflows/common-lint.yml directly interpolates `${{ steps.dokcer_files.outputs.found_files }}` into a shell for-loop: `for file in ${{ steps.dokcer_files.outputs.found_files }}; do`. This value flows through a step output and is unquoted, enabling shell metacharacter injection.
+
+Locations:
+
+- `.github/workflows/common-lint.yml:107`
 
 ### github-env-injection (severity: high)
 
-The 'Setup inputs' run block writes values derived from `inputs.*` and `github.*` context directly to `$GITHUB_OUTPUT` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). An attacker can inject newlines into these values to smuggle additional key=value pairs into GITHUB_OUTPUT, potentially overwriting subsequent step outputs or injecting environment variables.
-
-Affected writes (all in the 'Setup inputs' step):
-- `echo "action=${action}" >> $GITHUB_OUTPUT` — action is set from `${{ inputs.action }}`
-- `echo "branch=${branch}" >> $GITHUB_OUTPUT` — branch is set from `${{ inputs.branch }}`
-- `echo "gh_pages_url=${gh_pages_url}" >> $GITHUB_OUTPUT` — set from `${{ inputs.gh_pages_url }}`
-- `echo "repository=${repository}" >> $GITHUB_OUTPUT` — set from `${{ inputs.repository }}`
-- `echo "release_tag=${release_tag}" >> $GITHUB_OUTPUT` — set from `${{ inputs.release_tag }}`
-- `echo "release_version=${release_version}" >> $GITHUB_OUTPUT` — derived from release_tag (inputs)
-- `echo "source_repository=${source_repository}" >> $GITHUB_OUTPUT` — set from `${{ github.event.repository.name }}`
-- `echo "plugin_url=${plugin_url}" >> $GITHUB_OUTPUT` — derived from github context and inputs
-- `echo "zipfile_name=${zipfile_name}" >> $GITHUB_OUTPUT` — derived from github context and inputs
-- `echo "zipfile_path=${zipfile_path}" >> $GITHUB_OUTPUT` — derived from github context and inputs
-
-Each write must be preceded by sanitization, e.g.:
-`safe=$(printf '%s' "$branch" | tr -d '\n\r')`
-`echo "branch=${safe}" >> $GITHUB_OUTPUT`
+The 'Setup inputs' run: block in action.yml assigns values from untrusted sources (inputs.* and github.*) to shell variables and then writes them to $GITHUB_OUTPUT without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). For example: `action=${{ inputs.action }}` ... `echo "action=${action}" >> $GITHUB_OUTPUT`; `branch=${{ inputs.branch }}` ... `echo "branch=${branch}" >> $GITHUB_OUTPUT`; `source_repository=${{ github.event.repository.name }}` ... `echo "source_repository=${source_repository}" >> $GITHUB_OUTPUT`; and similarly for gh_pages_url, repository, release_tag, release_version, plugin_url, zipfile_name, zipfile_path. A newline injected into any of these values can poison subsequent steps via GITHUB_OUTPUT.
 
 Locations:
 
-- `action.yml:86`
-- `action.yml:87`
 - `action.yml:88`
-- `action.yml:89`
-- `action.yml:90`
-- `action.yml:91`
-- `action.yml:93`
-- `action.yml:95`
-- `action.yml:96`
-- `action.yml:97`
+
+### unpinned-uses (severity: high)
+
+Multiple uses: references in action.yml are pinned to mutable version tags rather than immutable 40-character SHA digests, making the action vulnerable to supply-chain attacks if the referenced tag is moved or the repository is compromised. Failing references: `actions/setup-python@v5`, `actions/checkout@v4`, `actions-js/push@v1.5`.
+
+Locations:
+
+- `action.yml:103`
+- `action.yml:113`
+- `action.yml:148`
+
+### unpinned-uses (severity: high)
+
+Multiple uses: references in .github/workflows/ci.yml are pinned to mutable version tags rather than immutable SHA digests. Failing references: `actions/checkout@v4`, `LizardByte/setup-release-action@v2025.426.225`, `LizardByte/create-release-action@v2025.426.1549`.
+
+Locations:
+
+- `.github/workflows/ci.yml:26`
+- `.github/workflows/ci.yml:31`
+- `.github/workflows/ci.yml:37`
+
+### unpinned-uses (severity: high)
+
+Multiple uses: references in .github/workflows/codeql.yml are pinned to mutable version tags rather than immutable SHA digests. Failing references: `actions/checkout@v4`, `actions/github-script@v7` (×2), `easimon/maximize-build-space@v10`, `msys2/setup-msys2@v2`, `github/codeql-action/init@v3`, `github/codeql-action/autobuild@v3`, `github/codeql-action/analyze@v3`, `advanced-security/filter-sarif@v1`, `github/codeql-action/upload-sarif@v3`, `actions/upload-artifact@v4`.
+
+Locations:
+
+- `.github/workflows/codeql.yml:31`
+- `.github/workflows/codeql.yml:37`
+- `.github/workflows/codeql.yml:96`
+- `.github/workflows/codeql.yml:113`
+- `.github/workflows/codeql.yml:121`
+- `.github/workflows/codeql.yml:127`
+- `.github/workflows/codeql.yml:134`
+- `.github/workflows/codeql.yml:155`
+- `.github/workflows/codeql.yml:158`
+- `.github/workflows/codeql.yml:163`
+- `.github/workflows/codeql.yml:172`
+- `.github/workflows/codeql.yml:179`
+
+### unpinned-uses (severity: high)
+
+Multiple uses: references in .github/workflows/common-lint.yml are pinned to mutable version tags rather than immutable SHA digests. Failing references: `actions/checkout@v4`, `actions/setup-python@v5`, `DoozyX/clang-format-lint-action@v0.20`, `dtolnay/rust-toolchain@stable`, `ibiqlik/action-yamllint@v3`.
+
+Locations:
+
+- `.github/workflows/common-lint.yml:26`
+- `.github/workflows/common-lint.yml:30`
+- `.github/workflows/common-lint.yml:60`
+- `.github/workflows/common-lint.yml:162`
+- `.github/workflows/common-lint.yml:181`
+
+### unpinned-uses (severity: high)
+
+The uses: reference in .github/workflows/issues.yml is pinned to a mutable version tag rather than an immutable SHA digest. Failing reference: `dessant/label-actions@v4`.
+
+Locations:
+
+- `.github/workflows/issues.yml:24`
 
 ### static-inline-injection (severity: high)
 
@@ -196,20 +213,27 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, script-injection, github-env-injection, static-inline-injection
+**Fixes applied:** script-injection, github-env-injection, unpinned-uses, static-inline-injection
 
 **Notes:**
 
-Fixed all findings in action.yml:
+Fixed all findings across action.yml, .github/workflows/ci.yml, .github/workflows/codeql.yml, .github/workflows/common-lint.yml, and .github/workflows/issues.yml.
 
-1. **unpinned-uses**: Pinned all three actions to full SHA digests:
-   - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-   - actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-   - actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
+1. action.yml - Setup inputs step: Moved all ${{ inputs.* }} and ${{ github.* }} expressions into env: block (INPUT_ACTION, INPUT_BRANCH, INPUT_GH_PAGES_URL, INPUT_REPOSITORY, INPUT_RELEASE_TAG, INPUT_ZIPFILE, INPUT_PLUGIN_URL, INPUT_PLUGIN_URL_DASH, GITHUB_REPO_NAME, GITHUB_REPO_FULL, GITHUB_REPO_HTML_URL, GITHUB_WORKSPACE_PATH). All GITHUB_OUTPUT writes now sanitize values with `printf '%s' | tr -d '\n\r'`.
 
-2. **script-injection / static-inline-injection**: Moved all ${{ }} expressions from run: blocks into env: blocks. The 'Setup inputs' step now uses env vars (INPUT_ACTION, INPUT_BRANCH, INPUT_GH_PAGES_URL, INPUT_REPOSITORY, INPUT_RELEASE_TAG, INPUT_ZIPFILE, INPUT_PLUGIN_URL, GITHUB_REPO_NAME, GITHUB_REPO_FULL, GITHUB_REPO_HTML_URL, GITHUB_WORKSPACE_PATH). The 'Install dependencies' and 'JPRM repo' steps use PYTHON_PATH and STEP_* env vars. All env vars are double-quoted in shell scripts.
+2. action.yml - Install dependencies step: Moved ${{ steps.setup-python.outputs.python-path }} into env: PYTHON_PATH.
 
-3. **github-env-injection**: All values written to $GITHUB_OUTPUT are now sanitized with `printf '%s' "$var" | tr -d '\n\r'` before writing, preventing newline injection. Also added missing plugin_name output that was computed but never written in the original.
+3. action.yml - JPRM repo step: Moved all ${{ steps.setup-python.outputs.python-path }} and ${{ steps.inputs.outputs.* }} into env: block (PYTHON_PATH, JPRM_BRANCH, JPRM_ACTION, JPRM_GH_PAGES_URL, JPRM_PLUGIN_URL, JPRM_ZIPFILE_PATH, JPRM_PLUGIN_NAME, JPRM_RELEASE_VERSION).
+
+4. action.yml - Pinned actions/setup-python@v5 → SHA a26af69, actions/checkout@v4 → SHA 11d5960, actions-js/push@v1.5 → SHA 5a7cbd7.
+
+5. codeql.yml - Prebuild step: Moved ${{ matrix.language }} and ${{ runner.os }} into env: MATRIX_LANGUAGE and RUNNER_OS_VAL. Pinned all 11 action references to full SHAs.
+
+6. common-lint.yml - CMake cmake-lint step: Moved ${{ steps.cmake_files.outputs.found_files }} into env: CMAKE_FOUND_FILES. Docker hadolint step: Moved ${{ steps.dokcer_files.outputs.found_files }} into env: DOCKER_FOUND_FILES. Pinned all 5 action references to full SHAs.
+
+7. issues.yml - Pinned dessant/label-actions@v4 → SHA 102faf4.
+
+8. ci.yml - Pinned all 3 action references to full SHAs.
 
 ### Iteration 2
 
@@ -217,5 +241,15 @@ Fixed all findings in action.yml:
 
 **Notes:**
 
-Fixed the unquoted shell variable in the case statement on line 72 of action.yml. Changed `case $action in` to `case "$action" in` to prevent shell metacharacter interpretation from the caller-controlled `inputs.action` value.
+Fixed two script-injection findings: (1) In action.yml, quoted the unquoted `$action` variable in the `case` statement: changed `case $action in` to `case "$action" in`. (2) In .github/workflows/common-lint.yml, moved the `${{ steps.yamllint.outputs.logfile }}` expression from the `run:` shell command into an `env:` block as `YAMLLINT_LOGFILE`, then referenced it as `"$YAMLLINT_LOGFILE"` in the shell command.
+
+### Iteration 3
+
+**Fixes applied:** script-injection
+
+**Notes:**
+
+Fixed two script injection findings in .github/workflows/common-lint.yml:
+1. CMake - cmake-lint step (line ~100): Replaced unquoted `$CMAKE_FOUND_FILES` expansion with `mapfile -t cmake_files_array <<< "$CMAKE_FOUND_FILES"` followed by `"${cmake_files_array[@]}"` to safely pass file paths as individual quoted arguments.
+2. Docker - hadolint step (line ~128): Replaced unquoted `for file in $DOCKER_FOUND_FILES` with `mapfile -t docker_files_array <<< "$DOCKER_FOUND_FILES"` and `for file in "${docker_files_array[@]}"` to safely iterate over file paths without word-splitting or glob expansion.
 

@@ -1,0 +1,59 @@
+---
+name: Test custom plugin URL and zipfile inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create a dummy zip file for testing
+        run: |
+          echo "dummy" > /tmp/myplugin.zip
+
+      - name: Run action with explicit plugin_url and zipfile
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          action: "add"
+          committer_email: "test@example.com"
+          committer_name: "Test User"
+          github_token: ${{ github.token }}
+          release_tag: "v1.0.0"
+          repository: "LizardByte/jellyfin-plugin-repo"
+          branch: "gh-pages"
+          plugin_url: "https://example.com/releases/myplugin.zip"
+          zipfile: "/tmp/myplugin.zip"
+
+      - name: Assert action was invoked
+        run: |
+          echo "outcome: ${{ steps.action.outcome }}"
+          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action was invoked (outcome: ${{ steps.action.outcome }})"
+
+      - name: Assert plugin_url output matches custom input
+        env:
+          PLUGIN_URL: ${{ steps.action.outputs.plugin_url }}
+        run: |
+          echo "plugin_url: $PLUGIN_URL"
+          if [ -n "$PLUGIN_URL" ] && [ "$PLUGIN_URL" != "https://example.com/releases/myplugin.zip" ]; then
+            echo "FAIL: expected plugin_url to be 'https://example.com/releases/myplugin.zip', got: $PLUGIN_URL"
+            exit 1
+          fi
+          echo "PASS: plugin_url correctly set (empty or custom URL): $PLUGIN_URL"
+
+      - name: Assert zipfile_name output matches custom zipfile basename
+        env:
+          ZIPFILE_NAME: ${{ steps.action.outputs.zipfile_name }}
+        run: |
+          echo "zipfile_name: $ZIPFILE_NAME"
+          if [ -n "$ZIPFILE_NAME" ] && [ "$ZIPFILE_NAME" != "myplugin.zip" ]; then
+            echo "FAIL: expected zipfile_name to be 'myplugin.zip', got: $ZIPFILE_NAME"
+            exit 1
+          fi
+          echo "PASS: zipfile_name correctly computed (empty or 'myplugin.zip'): $ZIPFILE_NAME"

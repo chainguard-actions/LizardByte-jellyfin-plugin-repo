@@ -8,84 +8,51 @@
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
-**Harden Agent Version:** `1`
+**Harden Agent Version:** `2`
 
-Action **LizardByte--jellyfin-plugin-repo/v2026.602.212143** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
+Action **LizardByte--jellyfin-plugin-repo/v2026.602.212143** was hardened automatically. 3 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
+### github-env-injection (severity: high)
+
+The 'Setup inputs' step writes values derived from untrusted inputs (inputs.action, inputs.branch, inputs.gh_pages_url, inputs.plugin_url, inputs.repository, inputs.release_tag, inputs.zipfile) and GitHub context values (github.event.repository.name, github.event.repository.html_url) to $GITHUB_OUTPUT without the required sanitization step (printf '%s' ... | tr -d '\n\r'). An attacker-controlled input containing newline characters could inject arbitrary key=value pairs into GITHUB_OUTPUT, potentially overwriting subsequent step outputs.
+
+Locations:
+
+- `action.yml:51`
+
 ### script-injection (severity: high)
 
-Rule (a): The 'Install dependencies' step directly interpolates ${{ steps.setup-python.outputs.python-path }} inside the run: shell command. The steps.*.outputs.* context is workflow-controllable and flows through YAML template substitution before the shell processes it, enabling command injection.
+Sub-rule (a): The 'Install dependencies' run: block directly interpolates ${{ steps.setup-python.outputs.python-path }} as the shell interpreter path. Step outputs are workflow-controllable contexts and must not be interpolated directly into run: scripts. The expression is substituted by the Actions runner before the shell parses the command, allowing injection of arbitrary shell metacharacters.
 
 Locations:
 
 - `action.yml:121`
-- `action.yml:122`
 
 ### script-injection (severity: high)
 
-Rule (a): The 'JPRM repo' step directly interpolates multiple ${{ }} expressions inside the run: shell command, including ${{ steps.setup-python.outputs.python-path }}, ${{ steps.inputs.outputs.branch }}, ${{ steps.inputs.outputs.action }}, ${{ steps.inputs.outputs.gh_pages_url }}, ${{ steps.inputs.outputs.plugin_url }}, ${{ steps.inputs.outputs.zipfile_path }}, ${{ steps.inputs.outputs.plugin_name }}, and ${{ steps.inputs.outputs.release_version }}. These are derived from user-controlled inputs.* and github.* contexts and are interpolated directly into shell commands, enabling command injection.
+Sub-rule (a): The 'JPRM repo' run: block directly interpolates multiple ${{ steps.inputs.outputs.* }} expressions (branch, action, gh_pages_url, plugin_url, zipfile_path, plugin_name, release_version, python-path) into shell commands. These step outputs are derived from attacker-controllable inputs.* and github.* values. Direct interpolation allows an attacker to inject shell metacharacters (e.g. via inputs.branch, inputs.plugin_url, inputs.zipfile) to achieve arbitrary command execution.
 
 Locations:
 
-- `action.yml:135`
-- `action.yml:138`
-- `action.yml:141`
-- `action.yml:144`
-- `action.yml:145`
-- `action.yml:147`
-- `action.yml:148`
-- `action.yml:152`
-- `action.yml:153`
-- `action.yml:154`
-
-### script-injection (severity: high)
-
-Rule (b): The 'Setup inputs' step expands untrusted env vars without double-quoting in multiple shell commands: `case ${INPUTS_ACTION} in` (unquoted), `echo ${SOURCE_REPOSITORY_NAME}` (unquoted, used in command substitution), `echo ${INPUTS_RELEASE_TAG}` (unquoted), `basename ${INPUTS_ZIPFILE}` (unquoted). These env vars hold values from inputs.* and github.* contexts. Unquoted expansions allow shell metacharacters (spaces, globs, semicolons) to be interpreted by the shell.
-
-Locations:
-
-- `action.yml:66`
-- `action.yml:75`
-- `action.yml:76`
-- `action.yml:79`
-- `action.yml:83`
-- `action.yml:87`
-
-### github-env-injection (severity: high)
-
-The 'Setup inputs' step writes multiple values derived from untrusted inputs.* and github.* contexts to $GITHUB_OUTPUT without the required sanitization step (printf '%s' ... | tr -d '\n\r'). The following values are written unsanitized: action (from inputs.action), branch (from inputs.branch), gh_pages_url (from inputs.gh_pages_url), plugin_name (derived from github.event.repository.name), plugin_url (derived from inputs.plugin_url and github.event.repository.html_url), repository (from inputs.repository), release_tag (from inputs.release_tag), release_version (derived from inputs.release_tag), source_repository (from github.event.repository.name), zipfile_name and zipfile_path (derived from inputs.zipfile and github.event.repository.name). A newline in any of these values could inject arbitrary key=value pairs into GITHUB_OUTPUT, poisoning subsequent steps.
-
-Locations:
-
-- `action.yml:100`
-- `action.yml:101`
-- `action.yml:102`
-- `action.yml:103`
-- `action.yml:104`
-- `action.yml:105`
-- `action.yml:106`
-- `action.yml:107`
-- `action.yml:108`
-- `action.yml:109`
-- `action.yml:110`
+- `action.yml:134`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection
+**Fixes applied:** github-env-injection, script-injection
 
 **Notes:**
 
-Fixed all four security findings in action.yml:
+Fixed three security findings in action.yml: (1) github-env-injection: sanitized all 11 values written to $GITHUB_OUTPUT in the 'Setup inputs' step using `printf '%s' ... | tr -d '\n\r'` to strip newlines before writing; (2) script-injection in 'Install dependencies': moved `${{ steps.setup-python.outputs.python-path }}` into an env block as PYTHON_PATH and referenced it as "$PYTHON_PATH" in the shell; (3) script-injection in 'JPRM repo': moved all ${{ steps.setup-python.outputs.python-path }} and ${{ steps.inputs.outputs.* }} expressions into an env block (PYTHON_PATH, JPRM_ACTION, JPRM_BRANCH, JPRM_GH_PAGES_URL, JPRM_PLUGIN_URL, JPRM_ZIPFILE_PATH, JPRM_PLUGIN_NAME, JPRM_RELEASE_VERSION) and referenced them as properly double-quoted environment variables in the shell script.
 
-1. script-injection (Install dependencies): Moved `${{ steps.setup-python.outputs.python-path }}` into an `env:` block as `PYTHON_PATH` and referenced it as `"$PYTHON_PATH"` in the shell script.
+### Iteration 2
 
-2. script-injection (JPRM repo): Moved all `${{ steps.setup-python.outputs.python-path }}` and `${{ steps.inputs.outputs.* }}` expressions into an `env:` block with named variables (`PYTHON_PATH`, `JPRM_ACTION`, `JPRM_BRANCH`, `JPRM_GH_PAGES_URL`, `JPRM_PLUGIN_URL`, `JPRM_ZIPFILE_PATH`, `JPRM_PLUGIN_NAME`, `JPRM_RELEASE_VERSION`) and referenced them as properly double-quoted `"$VAR"` in the shell script.
+**Fixes applied:** script-injection, unpinned-uses
 
-3. script-injection (Setup inputs): Added double-quotes around all unquoted env var expansions in the shell script (case statement, echo commands, basename call).
+**Notes:**
 
-4. github-env-injection (Setup inputs): Replaced all `echo "key=value"` writes to `$GITHUB_OUTPUT` with `printf 'key=%s\n' "$(printf '%s' "${VAR}" | tr -d '\n\r')"` to sanitize newlines and carriage returns before writing, preventing newline injection attacks.
+Fixed script-injection in action.yml by adding double quotes around all unquoted variable expansions in the 'Setup inputs' run block: `case "${INPUTS_ACTION}"`, `echo "${SOURCE_REPOSITORY_NAME}"` (3 occurrences), `echo "${INPUTS_RELEASE_TAG}"`, and `basename "${INPUTS_ZIPFILE}"`. Fixed unpinned-uses by resolving LizardByte/.github@master to SHA 4e4aa17193e825a20773bb38157b86186129d579 and pinning all three reusable workflow references in _codeql.yml, _common-lint.yml, and _top-issues.yml.
 

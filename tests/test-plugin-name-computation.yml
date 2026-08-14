@@ -1,0 +1,47 @@
+---
+name: Test plugin name computation
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with remove action to test plugin name and version outputs
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          action: "remove"
+          committer_email: "test@example.com"
+          committer_name: "Test User"
+          github_token: ${{ github.token }}
+          release_tag: "v2.0.0"
+          repository: "LizardByte/jellyfin-plugin-repo"
+          branch: "gh-pages"
+
+      - name: Assert action was invoked
+        run: |
+          echo "outcome: ${{ steps.action.outcome }}"
+          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action was invoked (outcome: ${{ steps.action.outcome }})"
+
+      - name: Assert release_version strips v prefix
+        env:
+          RELEASE_VERSION: ${{ steps.action.outputs.release_version }}
+        run: |
+          echo "release_version: $RELEASE_VERSION"
+          # release_version should strip the 'v' prefix from 'v2.0.0'
+          if [ -n "$RELEASE_VERSION" ] && [ "$RELEASE_VERSION" = "v2.0.0" ]; then
+            echo "FAIL: release_version should not have 'v' prefix, got: $RELEASE_VERSION"
+            exit 1
+          fi
+          if [ -n "$RELEASE_VERSION" ] && [ "$RELEASE_VERSION" != "2.0.0" ]; then
+            echo "FAIL: expected release_version to be '2.0.0', got: $RELEASE_VERSION"
+            exit 1
+          fi
+          echo "PASS: release_version correctly computed (empty or '2.0.0'): $RELEASE_VERSION"

@@ -116,18 +116,29 @@ runs:
           plugin_url=${INPUTS_PLUGIN_URL}
         fi
 
+        safe_action=$(printf '%s' "${INPUTS_ACTION}" | tr -d '\n\r')
+        safe_branch=$(printf '%s' "${INPUTS_BRANCH}" | tr -d '\n\r')
+        safe_gh_pages_url=$(printf '%s' "${INPUTS_GH_PAGES_URL}" | tr -d '\n\r')
+        safe_plugin_name=$(printf '%s' "${plugin_name}" | tr -d '\n\r')
+        safe_plugin_url=$(printf '%s' "${plugin_url}" | tr -d '\n\r')
+        safe_repository=$(printf '%s' "${INPUTS_REPOSITORY}" | tr -d '\n\r')
+        safe_release_tag=$(printf '%s' "${INPUTS_RELEASE_TAG}" | tr -d '\n\r')
+        safe_release_version=$(printf '%s' "${release_version}" | tr -d '\n\r')
+        safe_source_repository=$(printf '%s' "${SOURCE_REPOSITORY_NAME}" | tr -d '\n\r')
+        safe_zipfile_name=$(printf '%s' "${zipfile_name}" | tr -d '\n\r')
+        safe_zipfile_path=$(printf '%s' "${zipfile_path}" | tr -d '\n\r')
         {
-          printf 'action=%s\n' "$(printf '%s' "${INPUTS_ACTION}" | tr -d '\n\r')"
-          printf 'branch=%s\n' "$(printf '%s' "${INPUTS_BRANCH}" | tr -d '\n\r')"
-          printf 'gh_pages_url=%s\n' "$(printf '%s' "${INPUTS_GH_PAGES_URL}" | tr -d '\n\r')"
-          printf 'plugin_name=%s\n' "$(printf '%s' "${plugin_name}" | tr -d '\n\r')"
-          printf 'plugin_url=%s\n' "$(printf '%s' "${plugin_url}" | tr -d '\n\r')"
-          printf 'repository=%s\n' "$(printf '%s' "${INPUTS_REPOSITORY}" | tr -d '\n\r')"
-          printf 'release_tag=%s\n' "$(printf '%s' "${INPUTS_RELEASE_TAG}" | tr -d '\n\r')"
-          printf 'release_version=%s\n' "$(printf '%s' "${release_version}" | tr -d '\n\r')"
-          printf 'source_repository=%s\n' "$(printf '%s' "${SOURCE_REPOSITORY_NAME}" | tr -d '\n\r')"
-          printf 'zipfile_name=%s\n' "$(printf '%s' "${zipfile_name}" | tr -d '\n\r')"
-          printf 'zipfile_path=%s\n' "$(printf '%s' "${zipfile_path}" | tr -d '\n\r')"
+          echo "action=${safe_action}"
+          echo "branch=${safe_branch}"
+          echo "gh_pages_url=${safe_gh_pages_url}"
+          echo "plugin_name=${safe_plugin_name}"
+          echo "plugin_url=${safe_plugin_url}"
+          echo "repository=${safe_repository}"
+          echo "release_tag=${safe_release_tag}"
+          echo "release_version=${safe_release_version}"
+          echo "source_repository=${safe_source_repository}"
+          echo "zipfile_name=${safe_zipfile_name}"
+          echo "zipfile_path=${safe_zipfile_path}"
         } >> "${GITHUB_OUTPUT}"
     - name: Setup Python
       id: setup-python

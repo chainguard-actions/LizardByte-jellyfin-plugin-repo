@@ -1,0 +1,44 @@
+---
+name: CI
+permissions: {}
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed for release-setup action
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Setup Release
+        id: release-setup
+        uses: LizardByte/actions/actions/release_setup@4125866b7b655a6fe038b0e22a43a4c5d259af79  # v2026.417.35446
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create/Update GitHub Release
+        if: steps.release-setup.outputs.publish_release == 'true'
+        uses: LizardByte/actions/actions/release_create@4125866b7b655a6fe038b0e22a43a4c5d259af79  # v2026.417.35446
+        with:
+          allowUpdates: false
+          artifacts: ''
+          body: ${{ steps.release-setup.outputs.release_body }}
+          draft: true
+          generateReleaseNotes: ${{ steps.release-setup.outputs.release_generate_release_notes }}
+          name: ${{ steps.release-setup.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ steps.release-setup.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}

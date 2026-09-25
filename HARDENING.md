@@ -8,7 +8,7 @@
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
-**Harden Agent Version:** `1`
+**Harden Agent Version:** `2`
 
 Action **LizardByte--jellyfin-plugin-repo/v2025.612.131900** was hardened automatically. 13 finding(s) were identified and resolved across 2 iteration(s).
 
@@ -16,56 +16,63 @@ Action **LizardByte--jellyfin-plugin-repo/v2025.612.131900** was hardened automa
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Multiple ${{ ... }} expressions are interpolated directly inside run: shell command strings in action.yml. In the 'Setup inputs' step, attacker-controlled inputs are expanded inline: `action=${{ inputs.action }}`, `branch=${{ inputs.branch }}`, `gh_pages_url=${{ inputs.gh_pages_url }}`, `repository=${{ inputs.repository }}`, `release_tag=${{ inputs.release_tag }}`, `source_repository=${{ github.event.repository.name }}`, `${{ github.event.repository }}`, `${{ inputs.zipfile }}`, `zipfile_path=${{ github.workspace }}/...`, `zipfile_name=$(basename ${{ inputs.zipfile }})`, `zipfile_path=${{ inputs.zipfile }}`, `${{ inputs.plugin-url }}`, `plugin_url=${{ github.event.repository.html_url }}/...`, `plugin_url=${{ inputs.plugin_url }}`. In the 'Install dependencies' step: `${{ steps.setup-python.outputs.python-path }}` is used directly in run:. In the 'JPRM repo' step: `${{ steps.setup-python.outputs.python-path }}`, `${{ steps.inputs.outputs.branch }}`, `${{ steps.inputs.outputs.action }}`, `${{ steps.inputs.outputs.gh_pages_url }}`, `${{ steps.inputs.outputs.plugin_url }}`, `${{ steps.inputs.outputs.zipfile_path }}`, `${{ steps.inputs.outputs.plugin_name }}`, `${{ steps.inputs.outputs.release_version }}` are all interpolated directly into shell commands. Any of these values can contain shell metacharacters that will be interpreted by the shell before quoting takes effect.
+The 'Setup inputs' run: block (sub-rule a) directly interpolates multiple untrusted ${{ }} expressions into shell commands before the shell ever sees them, enabling arbitrary command injection. Offending lines include: `action=${{ inputs.action }}`, `branch=${{ inputs.branch }}`, `gh_pages_url=${{ inputs.gh_pages_url }}`, `repository=${{ inputs.repository }}`, `release_tag=${{ inputs.release_tag }}`, `source_repository=${{ github.event.repository.name }}`, `if [[ "${{ github.event.repository }}" =~ ^LizardByte/ ]]`, `zipfile_path=${{ github.workspace }}/...`, `zipfile_name=$(basename ${{ inputs.zipfile }})`, `zipfile_path=${{ inputs.zipfile }}`, `plugin_url=${{ github.event.repository.html_url }}/...`, and `plugin_url=${{ inputs.plugin_url }}`. The 'Install dependencies' step also interpolates `${{ steps.setup-python.outputs.python-path }}` directly into the run: script. The 'JPRM repo' step interpolates `${{ steps.setup-python.outputs.python-path }}`, `${{ steps.inputs.outputs.* }}` values directly into shell commands.
 
 Locations:
 
+- `action.yml:48`
+- `action.yml:49`
+- `action.yml:50`
+- `action.yml:51`
 - `action.yml:52`
-- `action.yml:53`
-- `action.yml:54`
-- `action.yml:55`
-- `action.yml:56`
-- `action.yml:63`
-- `action.yml:65`
+- `action.yml:64`
+- `action.yml:66`
 - `action.yml:75`
 - `action.yml:78`
 - `action.yml:79`
 - `action.yml:82`
 - `action.yml:84`
-- `action.yml:107`
-- `action.yml:116`
-- `action.yml:122`
+- `action.yml:85`
+- `action.yml:108`
+- `action.yml:109`
+- `action.yml:120`
+- `action.yml:123`
 - `action.yml:127`
+- `action.yml:129`
 - `action.yml:130`
-- `action.yml:133`
-- `action.yml:136`
+- `action.yml:131`
+- `action.yml:132`
+- `action.yml:134`
+- `action.yml:138`
+- `action.yml:139`
+- `action.yml:140`
 
 ### github-env-injection (severity: high)
 
-The 'Setup inputs' step writes values derived from untrusted inputs (inputs.action, inputs.branch, inputs.gh_pages_url, inputs.repository, inputs.release_tag, inputs.zipfile, inputs.plugin_url, github.event.repository.name, github.event.repository.html_url, github.workspace) to $GITHUB_OUTPUT via intermediate shell variables (action, branch, gh_pages_url, repository, release_tag, release_version, source_repository, plugin_url, zipfile_name, zipfile_path) without applying the required sanitization step (`printf '%s' ... | tr -d '\n\r'`) before each write. An attacker can inject newlines into these values to poison subsequent steps that read from $GITHUB_OUTPUT.
+The 'Setup inputs' run: block writes values derived from untrusted inputs (${{ inputs.* }}, ${{ github.* }}) to $GITHUB_OUTPUT without sanitization. Variables such as `action`, `branch`, `gh_pages_url`, `repository`, `release_tag`, `release_version`, `source_repository`, `plugin_url`, `zipfile_name`, and `zipfile_path` are all populated from attacker-controlled expressions and then echoed directly to $GITHUB_OUTPUT (e.g., `echo "action=${action}" >> $GITHUB_OUTPUT`). No `printf '%s' ... | tr -d '\n\r'` sanitization is applied before any of these writes, allowing newline injection to poison the output context.
 
 Locations:
 
-- `action.yml:89`
-- `action.yml:90`
-- `action.yml:91`
-- `action.yml:92`
 - `action.yml:93`
 - `action.yml:94`
+- `action.yml:95`
 - `action.yml:96`
+- `action.yml:97`
 - `action.yml:98`
-- `action.yml:99`
 - `action.yml:100`
+- `action.yml:102`
+- `action.yml:103`
+- `action.yml:104`
 
 ### unpinned-uses (severity: high)
 
-Three uses: references in action.yml use mutable version tags instead of pinned 40-character SHA commit digests, making the action vulnerable to supply-chain attacks if those tags are moved: (1) `actions/setup-python@v5`, (2) `actions/checkout@v4`, (3) `actions-js/push@v1.5`. Each should be replaced with a full SHA, e.g. `actions/setup-python@<40-char-sha> # v5`.
+Three uses: references are pinned to mutable tags rather than immutable 40-character SHA digests, making the action vulnerable to supply-chain attacks if the upstream tag is moved or compromised: (1) `actions/setup-python@v5` — should be pinned to a full SHA; (2) `actions/checkout@v4` — should be pinned to a full SHA; (3) `actions-js/push@v1.5` — should be pinned to a full SHA.
 
 Locations:
 
-- `action.yml:104`
-- `action.yml:112`
-- `action.yml:143`
+- `action.yml:106`
+- `action.yml:113`
+- `action.yml:146`
 
 ### static-inline-injection (severity: high)
 
@@ -155,18 +162,16 @@ Locations:
 
 **Notes:**
 
-Rewrote action.yml to fix all findings:
+Fixed all findings in action.yml:
 
-1. script-injection / static-inline-injection: Moved all ${{ }} expressions from run: shell strings into env: blocks for the 'Setup inputs', 'Install dependencies', and 'JPRM repo' steps. All shell references now use double-quoted "$VAR" form to prevent shell metacharacter interpretation.
+1. script-injection / static-inline-injection: Moved all ${{ inputs.* }} and ${{ github.* }} expressions from run: blocks into env: blocks. The 'Setup inputs' step now uses INPUT_ACTION, INPUT_BRANCH, INPUT_GH_PAGES_URL, INPUT_REPOSITORY, INPUT_RELEASE_TAG, INPUT_ZIPFILE, INPUT_PLUGIN_URL, GITHUB_REPO_NAME, GITHUB_REPO_FULL, GITHUB_REPO_HTML_URL, and GITHUB_WORKSPACE_PATH env vars. The 'Install dependencies' and 'JPRM repo' steps use PYTHON_PATH env var instead of inline ${{ steps.setup-python.outputs.python-path }}. The 'JPRM repo' step uses INPUTS_ACTION, INPUTS_BRANCH, INPUTS_GH_PAGES_URL, INPUTS_PLUGIN_URL, INPUTS_ZIPFILE_PATH, INPUTS_PLUGIN_NAME, and INPUTS_RELEASE_VERSION env vars.
 
-2. github-env-injection: Added sanitization of all values before writing to $GITHUB_OUTPUT using `printf '%s' "$var" | tr -d '\n\r'` to strip newlines that could inject additional key=value pairs.
+2. github-env-injection: All values written to $GITHUB_OUTPUT are now sanitized with `printf '%s' "$VAR" | tr -d '\n\r'` before writing, preventing newline injection attacks.
 
-3. unpinned-uses: Pinned all three action references to full 40-character SHA digests:
-   - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-   - actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-   - actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
-
-Note: The original code used `${{ github.event.repository }}` in a regex check (checking if it starts with 'LizardByte/'). This was changed to use `${{ github.event.repository.full_name }}` which is the correct field for the full repository name (owner/repo format), mapped to EVENT_REPO_FULL_NAME env var. Also added plugin_name to GITHUB_OUTPUT since it was referenced in the JPRM repo step but was missing from the original outputs.
+3. unpinned-uses: Pinned all three actions to full commit SHAs:
+   - actions/setup-python@v5 → @a26af69be951a213d495a4c3e4e4022e16d87065
+   - actions/checkout@v4 → @11d5960a326750d5838078e36cf38b85af677262
+   - actions-js/push@v1.5 → @5a7cbd780d82c0c937b5977586e641b2fd94acc5
 
 ### Iteration 2
 
@@ -174,5 +179,5 @@ Note: The original code used `${{ github.event.repository }}` in a regex check (
 
 **Notes:**
 
-Fixed the unquoted `$action` variable in the `case` statement at line 68 of action.yml. Changed `case $action in` to `case "$action" in` to ensure the untrusted caller-controlled value (derived from `inputs.action` via `INPUT_ACTION` env var) is always double-quoted when expanded in the shell script.
+Fixed the unquoted shell variable in the `case` statement at line 68 of action.yml. Changed `case $action in` to `case "$action" in` to prevent word splitting and glob expansion on the caller-controlled `$INPUT_ACTION` value.
 

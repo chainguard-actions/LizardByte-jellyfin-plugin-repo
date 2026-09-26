@@ -70,10 +70,11 @@ runs:
         INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         INPUT_ZIPFILE: ${{ inputs.zipfile }}
         INPUT_PLUGIN_URL: ${{ inputs.plugin_url }}
-        GITHUB_REPO_NAME: ${{ github.event.repository.name }}
-        GITHUB_REPO_FULL: ${{ github.event.repository.full_name }}
-        GITHUB_REPO_HTML_URL: ${{ github.event.repository.html_url }}
-        GITHUB_WORKSPACE_PATH: ${{ github.workspace }}
+        INPUT_PLUGIN_URL_DASH: ${{ inputs.plugin-url }}
+        EVENT_REPO_NAME: ${{ github.event.repository.name }}
+        EVENT_REPO_FULL_NAME: ${{ github.event.repository.full_name }}
+        EVENT_REPO_HTML_URL: ${{ github.event.repository.html_url }}
+        GITHUB_WORKSPACE_VAL: ${{ github.workspace }}
       run: |
         action="$INPUT_ACTION"
         branch="$INPUT_BRANCH"
@@ -95,9 +96,9 @@ runs:
         esac
 
         # the repository running this action
-        source_repository="$GITHUB_REPO_NAME"
+        source_repository="$EVENT_REPO_NAME"
 
-        if [[ "$GITHUB_REPO_FULL" =~ ^LizardByte/ ]]; then
+        if [[ "$EVENT_REPO_FULL_NAME" =~ ^LizardByte/ ]]; then
           # strip `-jellyfin` from the end of the name, if in the LizardByte org
           plugin_name=$(echo "$source_repository" | sed 's/-jellyfin$//' | tr '[:upper:]' '[:lower:]')
         else
@@ -111,14 +112,14 @@ runs:
           # repository name in lowercase
           repository_name=$(echo "${source_repository}" | tr '[:upper:]' '[:lower:]')
           zipfile_name=${repository_name}.zip
-          zipfile_path="${GITHUB_WORKSPACE_PATH}/${repository_name}.zip"
+          zipfile_path="${GITHUB_WORKSPACE_VAL}/${repository_name}.zip"
         else
           zipfile_name=$(basename "$INPUT_ZIPFILE")
           zipfile_path="$INPUT_ZIPFILE"
         fi
 
-        if [ -z "$INPUT_PLUGIN_URL" ]; then
-          plugin_url="${GITHUB_REPO_HTML_URL}/releases/download/${release_tag}/${zipfile_name}"
+        if [ -z "$INPUT_PLUGIN_URL_DASH" ]; then
+          plugin_url="${EVENT_REPO_HTML_URL}/releases/download/${release_tag}/${zipfile_name}"
         else
           plugin_url="$INPUT_PLUGIN_URL"
         fi

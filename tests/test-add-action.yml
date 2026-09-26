@@ -1,4 +1,4 @@
-name: Test remove action (input validation)
+name: Test add action (input validation and setup)
 on:
   workflow_dispatch:
 jobs:
@@ -11,7 +11,7 @@ jobs:
         uses: .
         continue-on-error: true
         with:
-          action: remove
+          action: add
           committer_email: "test@example.com"
           committer_name: "Test User"
           github_token: ${{ github.token }}
@@ -20,13 +20,16 @@ jobs:
           branch: "gh-pages"
           gh_pages_url: "https://lizardbyte.github.io/jellyfin-plugin-repo"
 
-      - name: Assert action ran (passed input validation for remove)
+      - name: Assert action ran (passed input validation)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
-          # The 'remove' action value is valid; the action should not fail at input validation.
-          # It may fail later due to sentinel GITHUB_REPOSITORY or network access.
+          # The action should either succeed or fail at a later step (checkout/push)
+          # but NOT fail at the input validation step (which would indicate a bug
+          # in the 'add' action value handling).
+          # A failure here is expected due to the sentinel GITHUB_REPOSITORY
+          # or network access to external repos.
           if [ "$OUTCOME" = "success" ]; then
             echo "PASS: action completed successfully"
           elif [ "$OUTCOME" = "failure" ]; then

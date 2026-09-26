@@ -142,7 +142,7 @@ runs:
         } >> "${GITHUB_OUTPUT}"
     - name: Setup Python
       id: setup-python
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      uses: chainguard-actions/actions-setup-python@69608a2586b78d6a34fa2f1b4d6a1b606adb8a5b # v6.2.0
       with:
         python-version: "3.14"
         update-environment: false
@@ -155,7 +155,7 @@ runs:
         "$PYTHON_PATH" -m pip install --upgrade pip setuptools wheel
         "$PYTHON_PATH" -m pip install -r requirements.txt
     - name: Checkout gh-pages
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: chainguard-actions/actions-checkout@5ec64c0c3db996bb66e02e8c680b0736fc123f6d # v6.0.2
       with:
         ref: ${{ steps.inputs.outputs.branch }}
         repository: ${{ steps.inputs.outputs.repository }}
@@ -198,7 +198,7 @@ runs:
             "$JPRM_RELEASE_VERSION"
         fi
     - name: Publish gh-pages
-      uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
+      uses: chainguard-actions/actions-js-push@6fac7076dc525c1b68ba5e4d8b428112a8b6dbe0 # v1.5
       with:
         github_token: ${{ inputs.github_token }}
         author_email: ${{ inputs.committer_email }}

@@ -69,12 +69,12 @@ runs:
         INPUT_REPOSITORY: ${{ inputs.repository }}
         INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         INPUT_ZIPFILE: ${{ inputs.zipfile }}
-        INPUT_PLUGIN_URL: ${{ inputs.plugin_url }}
-        INPUT_PLUGIN_URL_DASH: ${{ inputs.plugin-url }}
-        EVENT_REPO_NAME: ${{ github.event.repository.name }}
-        EVENT_REPO_FULL_NAME: ${{ github.event.repository.full_name }}
-        EVENT_REPO_HTML_URL: ${{ github.event.repository.html_url }}
-        GITHUB_WORKSPACE_VAL: ${{ github.workspace }}
+        INPUT_PLUGIN_URL: ${{ inputs.plugin-url }}
+        INPUT_PLUGIN_URL_ALT: ${{ inputs.plugin_url }}
+        GITHUB_REPO_NAME: ${{ github.event.repository.name }}
+        GITHUB_REPO_FULL: ${{ github.event.repository.full_name }}
+        GITHUB_REPO_HTML_URL: ${{ github.event.repository.html_url }}
+        GITHUB_WORKSPACE_PATH: ${{ github.workspace }}
       run: |
         action="$INPUT_ACTION"
         branch="$INPUT_BRANCH"
@@ -96,9 +96,9 @@ runs:
         esac
 
         # the repository running this action
-        source_repository="$EVENT_REPO_NAME"
+        source_repository="$GITHUB_REPO_NAME"
 
-        if [[ "$EVENT_REPO_FULL_NAME" =~ ^LizardByte/ ]]; then
+        if [[ "$GITHUB_REPO_FULL" =~ ^LizardByte/ ]]; then
           # strip `-jellyfin` from the end of the name, if in the LizardByte org
           plugin_name=$(echo "$source_repository" | sed 's/-jellyfin$//' | tr '[:upper:]' '[:lower:]')
         else
@@ -112,16 +112,16 @@ runs:
           # repository name in lowercase
           repository_name=$(echo "${source_repository}" | tr '[:upper:]' '[:lower:]')
           zipfile_name=${repository_name}.zip
-          zipfile_path="${GITHUB_WORKSPACE_VAL}/${repository_name}.zip"
+          zipfile_path="${GITHUB_WORKSPACE_PATH}/${repository_name}.zip"
         else
           zipfile_name=$(basename "$INPUT_ZIPFILE")
           zipfile_path="$INPUT_ZIPFILE"
         fi
 
-        if [ -z "$INPUT_PLUGIN_URL_DASH" ]; then
-          plugin_url="${EVENT_REPO_HTML_URL}/releases/download/${release_tag}/${zipfile_name}"
+        if [ -z "$INPUT_PLUGIN_URL" ]; then
+          plugin_url="${GITHUB_REPO_HTML_URL}/releases/download/${release_tag}/${zipfile_name}"
         else
-          plugin_url="$INPUT_PLUGIN_URL"
+          plugin_url="$INPUT_PLUGIN_URL_ALT"
         fi
 
         safe_action=$(printf '%s' "$action" | tr -d '\n\r')
@@ -175,36 +175,36 @@ runs:
       shell: bash
       env:
         PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
-        INPUTS_ACTION: ${{ steps.inputs.outputs.action }}
-        INPUTS_BRANCH: ${{ steps.inputs.outputs.branch }}
-        INPUTS_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
-        INPUTS_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
-        INPUTS_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
-        INPUTS_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
-        INPUTS_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
+        STEP_ACTION: ${{ steps.inputs.outputs.action }}
+        STEP_BRANCH: ${{ steps.inputs.outputs.branch }}
+        STEP_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
+        STEP_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
+        STEP_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
+        STEP_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
+        STEP_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
       run: |
         # initialize repo if it doesn't exist
         "$PYTHON_PATH" \
           -m jprm \
           repo init \
-          "$INPUTS_BRANCH" || true  # ignore error if already exists
+          "$STEP_BRANCH" || true  # ignore error if already exists
 
         # add plugin to repo
-        if [ "$INPUTS_ACTION" == "add" ]; then
+        if [ "$STEP_ACTION" == "add" ]; then
           "$PYTHON_PATH" \
             -m jprm \
             repo add \
-            --url "$INPUTS_GH_PAGES_URL" \
-            --plugin-url "$INPUTS_PLUGIN_URL" \
-            "$INPUTS_BRANCH" \
-            "$INPUTS_ZIPFILE_PATH"
-        elif [ "$INPUTS_ACTION" == "remove" ]; then
+            --url "$STEP_GH_PAGES_URL" \
+            --plugin-url "$STEP_PLUGIN_URL" \
+            "$STEP_BRANCH" \
+            "$STEP_ZIPFILE_PATH"
+        elif [ "$STEP_ACTION" == "remove" ]; then
           "$PYTHON_PATH" \
             -m jprm \
             repo remove \
-            "$INPUTS_BRANCH" \
-            "$INPUTS_PLUGIN_NAME" \
-            "$INPUTS_RELEASE_VERSION"
+            "$STEP_BRANCH" \
+            "$STEP_PLUGIN_NAME" \
+            "$STEP_RELEASE_VERSION"
         fi
     - name: Publish gh-pages
       uses: chainguard-actions/actions-js-push@6fac7076dc525c1b68ba5e4d8b428112a8b6dbe0 # v1.5

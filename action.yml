@@ -69,10 +69,10 @@ runs:
         INPUT_REPOSITORY: ${{ inputs.repository }}
         INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         INPUT_ZIPFILE: ${{ inputs.zipfile }}
-        INPUT_PLUGIN_URL: ${{ inputs.plugin_url }}
-        INPUT_PLUGIN_DASH_URL: ${{ inputs.plugin-url }}
+        INPUT_PLUGIN_URL: ${{ inputs.plugin-url }}
+        INPUT_PLUGIN_URL_ALT: ${{ inputs.plugin_url }}
         GITHUB_REPO_NAME: ${{ github.event.repository.name }}
-        GITHUB_REPO_FULL: ${{ github.event.repository }}
+        GITHUB_REPO_FULL: ${{ github.event.repository.full_name }}
         GITHUB_REPO_HTML_URL: ${{ github.event.repository.html_url }}
         GITHUB_WORKSPACE_PATH: ${{ github.workspace }}
       run: |
@@ -118,10 +118,10 @@ runs:
           zipfile_path="$INPUT_ZIPFILE"
         fi
 
-        if [ -z "$INPUT_PLUGIN_DASH_URL" ]; then
+        if [ -z "$INPUT_PLUGIN_URL" ]; then
           plugin_url="${GITHUB_REPO_HTML_URL}/releases/download/${release_tag}/${zipfile_name}"
         else
-          plugin_url="$INPUT_PLUGIN_URL"
+          plugin_url="$INPUT_PLUGIN_URL_ALT"
         fi
 
         safe_action=$(printf '%s' "$action" | tr -d '\n\r')
@@ -134,7 +134,6 @@ runs:
         safe_plugin_url=$(printf '%s' "$plugin_url" | tr -d '\n\r')
         safe_zipfile_name=$(printf '%s' "$zipfile_name" | tr -d '\n\r')
         safe_zipfile_path=$(printf '%s' "$zipfile_path" | tr -d '\n\r')
-        safe_plugin_name=$(printf '%s' "$plugin_name" | tr -d '\n\r')
 
         echo "action=${safe_action}" >> "$GITHUB_OUTPUT"
         echo "branch=${safe_branch}" >> "$GITHUB_OUTPUT"
@@ -148,7 +147,6 @@ runs:
         echo "plugin_url=${safe_plugin_url}" >> "$GITHUB_OUTPUT"
         echo "zipfile_name=${safe_zipfile_name}" >> "$GITHUB_OUTPUT"
         echo "zipfile_path=${safe_zipfile_path}" >> "$GITHUB_OUTPUT"
-        echo "plugin_name=${safe_plugin_name}" >> "$GITHUB_OUTPUT"
     - name: Setup Python
       id: setup-python
       uses: chainguard-actions/actions-setup-python@ace3254bb5011efbd0650a7120a0441ebd1f9400 # v5
@@ -175,36 +173,36 @@ runs:
       shell: bash
       env:
         PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
-        STEP_BRANCH: ${{ steps.inputs.outputs.branch }}
-        STEP_ACTION: ${{ steps.inputs.outputs.action }}
-        STEP_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
-        STEP_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
-        STEP_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
-        STEP_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
-        STEP_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
+        JPRM_ACTION: ${{ steps.inputs.outputs.action }}
+        JPRM_BRANCH: ${{ steps.inputs.outputs.branch }}
+        JPRM_GH_PAGES_URL: ${{ steps.inputs.outputs.gh_pages_url }}
+        JPRM_PLUGIN_URL: ${{ steps.inputs.outputs.plugin_url }}
+        JPRM_ZIPFILE_PATH: ${{ steps.inputs.outputs.zipfile_path }}
+        JPRM_PLUGIN_NAME: ${{ steps.inputs.outputs.plugin_name }}
+        JPRM_RELEASE_VERSION: ${{ steps.inputs.outputs.release_version }}
       run: |
         # initialize repo if it doesn't exist
         "$PYTHON_PATH" \
           -m jprm \
           repo init \
-          "$STEP_BRANCH" || true  # ignore error if already exists
+          "$JPRM_BRANCH" || true  # ignore error if already exists
 
         # add plugin to repo
-        if [ "$STEP_ACTION" == "add" ]; then
+        if [ "$JPRM_ACTION" == "add" ]; then
           "$PYTHON_PATH" \
             -m jprm \
             repo add \
-            --url "$STEP_GH_PAGES_URL" \
-            --plugin-url "$STEP_PLUGIN_URL" \
-            "$STEP_BRANCH" \
-            "$STEP_ZIPFILE_PATH"
-        elif [ "$STEP_ACTION" == "remove" ]; then
+            --url "$JPRM_GH_PAGES_URL" \
+            --plugin-url "$JPRM_PLUGIN_URL" \
+            "$JPRM_BRANCH" \
+            "$JPRM_ZIPFILE_PATH"
+        elif [ "$JPRM_ACTION" == "remove" ]; then
           "$PYTHON_PATH" \
             -m jprm \
             repo remove \
-            "$STEP_BRANCH" \
-            "$STEP_PLUGIN_NAME" \
-            "$STEP_RELEASE_VERSION"
+            "$JPRM_BRANCH" \
+            "$JPRM_PLUGIN_NAME" \
+            "$JPRM_RELEASE_VERSION"
         fi
     - name: Publish gh-pages
       uses: chainguard-actions/actions-js-push@6fac7076dc525c1b68ba5e4d8b428112a8b6dbe0 # v1.5

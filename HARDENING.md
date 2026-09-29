@@ -10,59 +10,37 @@
 
 **Harden Agent Version:** `2`
 
-Action **LizardByte--jellyfin-plugin-repo/v2025.426.154020** was hardened automatically. 13 finding(s) were identified and resolved across 2 iteration(s).
+Action **LizardByte--jellyfin-plugin-repo/v2025.426.154020** was hardened automatically. 13 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-The 'Setup inputs' run block directly interpolates ${{ inputs.* }} and ${{ github.* }} expressions into shell commands (sub-rule a), enabling script injection. Examples: `action=${{ inputs.action }}`, `branch=${{ inputs.branch }}`, `source_repository=${{ github.event.repository.name }}`, `zipfile_name=$(basename ${{ inputs.zipfile }})`, `zipfile_path=${{ inputs.zipfile }}`, `plugin_url=${{ github.event.repository.html_url }}/...`. These values are also used unquoted as shell variables (sub-rule b), e.g. `case $action in`. The 'Install dependencies' step uses `${{ steps.setup-python.outputs.python-path }}` directly in a run block. The 'JPRM repo' step uses `${{ steps.setup-python.outputs.python-path }}` and `${{ steps.inputs.outputs.* }}` directly in a run block, all without quoting.
+Multiple `run:` blocks in action.yml directly interpolate `${{ ... }}` expressions inside shell command strings, violating sub-rule (a). In the 'Setup inputs' step (line 50), attacker-controlled inputs are interpolated unquoted directly into shell assignments: `action=${{ inputs.action }}`, `branch=${{ inputs.branch }}`, `gh_pages_url=${{ inputs.gh_pages_url }}`, `repository=${{ inputs.repository }}`, `release_tag=${{ inputs.release_tag }}`, `source_repository=${{ github.event.repository.name }}`, `${{ github.event.repository }}` in a regex test, `${{ github.workspace }}`, `${{ inputs.zipfile }}`, `${{ inputs.plugin_url }}`, `${{ github.event.repository.html_url }}`. Additionally, shell variables like `$action` and `$source_repository` are used unquoted in shell constructs (sub-rule b). In the 'Install dependencies' step (line 122), `${{ steps.setup-python.outputs.python-path }}` is interpolated directly into the run script. In the 'JPRM repo' step (line 137), numerous `${{ steps.inputs.outputs.* }}` expressions are interpolated directly into shell commands including as unquoted CLI arguments.
 
 Locations:
 
-- `action.yml:47`
-- `action.yml:48`
-- `action.yml:49`
 - `action.yml:50`
-- `action.yml:51`
-- `action.yml:67`
-- `action.yml:68`
-- `action.yml:79`
-- `action.yml:83`
-- `action.yml:84`
-- `action.yml:88`
-- `action.yml:89`
-- `action.yml:101`
-- `action.yml:102`
-- `action.yml:113`
-- `action.yml:114`
+- `action.yml:122`
+- `action.yml:137`
 
 ### github-env-injection (severity: high)
 
-The 'Setup inputs' step writes values derived from untrusted inputs (${{ inputs.action }}, ${{ inputs.branch }}, ${{ inputs.gh_pages_url }}, ${{ inputs.repository }}, ${{ inputs.release_tag }}, ${{ github.event.repository.name }}, ${{ inputs.zipfile }}, ${{ inputs.plugin_url }}, ${{ github.event.repository.html_url }}) to $GITHUB_OUTPUT via shell variables (e.g. `echo "action=${action}" >> $GITHUB_OUTPUT`) without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). An attacker-controlled newline in any of these values can inject arbitrary key=value pairs into GITHUB_OUTPUT.
+The 'Setup inputs' step writes values derived from untrusted inputs and github context directly to `$GITHUB_OUTPUT` without sanitization. Variables `action`, `branch`, `gh_pages_url`, `repository`, `release_tag`, `release_version`, `source_repository`, `plugin_url`, `zipfile_name`, and `zipfile_path` are all populated from `inputs.*` or `github.*` expressions (e.g. `inputs.action`, `inputs.branch`, `github.event.repository.name`, `github.event.repository.html_url`) and then written via `echo "key=${var}" >> $GITHUB_OUTPUT` without the required `printf '%s' "$VAR" | tr -d '\n\r'` sanitization step. A newline injected into any of these values could allow an attacker to inject arbitrary key-value pairs into the step outputs.
 
 Locations:
 
-- `action.yml:95`
-- `action.yml:96`
-- `action.yml:97`
-- `action.yml:98`
 - `action.yml:99`
-- `action.yml:100`
-- `action.yml:102`
-- `action.yml:104`
-- `action.yml:105`
-- `action.yml:106`
 
 ### unpinned-uses (severity: high)
 
-Three 'uses:' references in action.yml use mutable version tags instead of full 40-character commit SHA digests, making the action vulnerable to supply-chain attacks if those tags are moved: (1) `actions/setup-python@v5`, (2) `actions/checkout@v4`, (3) `actions-js/push@v1.5`.
+Three `uses:` references in action.yml are pinned to mutable version tags rather than immutable 40-character SHA commit digests, making the action vulnerable to supply-chain attacks if the referenced tag is moved or the upstream repository is compromised: (1) `uses: actions/setup-python@v5` (line 114), (2) `uses: actions/checkout@v4` (line 127), (3) `uses: actions-js/push@v1.5` (line 162). Each should be pinned to a full SHA, e.g. `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`.
 
 Locations:
 
-- `action.yml:110`
-- `action.yml:118`
-- `action.yml:152`
+- `action.yml:114`
+- `action.yml:127`
+- `action.yml:162`
 
 ### static-inline-injection (severity: high)
 
@@ -154,22 +132,14 @@ Locations:
 
 Fixed all findings in action.yml:
 
-1. script-injection / static-inline-injection: Moved all ${{ inputs.* }} and ${{ github.* }} expressions from run: blocks into env: blocks for the 'Setup inputs', 'Install dependencies', and 'JPRM repo' steps. Shell variables now use proper double-quoting throughout.
+1. **script-injection & static-inline-injection**: Moved all ${{ }} expressions from run: blocks into env: maps. 'Setup inputs' step now uses INPUT_ACTION, INPUT_BRANCH, INPUT_GH_PAGES_URL, INPUT_REPOSITORY, INPUT_RELEASE_TAG, INPUT_ZIPFILE, INPUT_PLUGIN_URL, INPUT_PLUGIN_URL_HYPHEN, GITHUB_REPO_NAME, GITHUB_REPO_FULL_NAME, GITHUB_REPO_HTML_URL, GITHUB_WORKSPACE_PATH env vars. 'Install dependencies' uses PYTHON_PATH. 'JPRM repo' uses PYTHON_PATH, JPRM_ACTION, JPRM_BRANCH, JPRM_GH_PAGES_URL, JPRM_PLUGIN_URL, JPRM_ZIPFILE_PATH, JPRM_PLUGIN_NAME, JPRM_RELEASE_VERSION. All shell variables are now properly double-quoted.
 
-2. github-env-injection: All values written to $GITHUB_OUTPUT are now sanitized with `printf '%s' "$var" | tr -d '\n\r'` before being echoed, preventing newline injection attacks.
+2. **github-env-injection**: All values written to $GITHUB_OUTPUT are sanitized with `printf '%s' "$VAR" | tr -d '\n\r'` before writing. The $GITHUB_OUTPUT reference is also properly quoted.
 
-3. unpinned-uses: Pinned all three actions to full 40-character commit SHAs:
-   - actions/setup-python@v5 → @a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-   - actions/checkout@v4 → @11d5960a326750d5838078e36cf38b85af677262 # v4
-   - actions-js/push@v1.5 → @5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
+3. **unpinned-uses**: Pinned all three actions to full commit SHAs:
+   - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+   - actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+   - actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
 
-Also fixed: the original `${{ github.event.repository }}` (whole object) used in a regex check was replaced with `${{ github.event.repository.full_name }}` (the owner/repo string) which is what the ^LizardByte/ regex was designed to match.
-
-### Iteration 2
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed the unquoted `$action` variable in the `case` statement on line 68 of action.yml. Changed `case $action in` to `case "$action" in` to prevent shell metacharacter interpretation (glob expansion, word splitting) before the pattern match occurs. The variable was already safely assigned from `$INPUT_ACTION` (which is set via the env block from `inputs.action`), but the unquoted use in the case statement was the specific finding.
+Note: The original `${{ github.event.repository }}` regex check (which tested the whole repository object) was replaced with `${{ github.event.repository.full_name }}` (GITHUB_REPO_FULL_NAME) which correctly provides the 'org/repo' string for the LizardByte/ prefix check.
 

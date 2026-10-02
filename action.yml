@@ -82,7 +82,7 @@ runs:
         release_tag="$INPUT_RELEASE_TAG"
 
         # switch to ensure the action is valid
-        case $action in
+        case "$action" in
           add)
             ;;
           remove)
@@ -161,7 +161,7 @@ runs:
         "$PYTHON_PATH" -m pip install --upgrade pip setuptools wheel
         "$PYTHON_PATH" -m pip install -r requirements.txt
     - name: Checkout gh-pages
-      uses: chainguard-actions/actions-checkout@59b7218bfc2eaabc464f1254f6e1dac5bda91d94 # v4
+      uses: chainguard-actions/actions-checkout@31bbccf724702f8a0dc7a3ed7db8fcca2066babc # v4
       with:
         ref: ${{ steps.inputs.outputs.branch }}
         repository: ${{ steps.inputs.outputs.repository }}
